@@ -1,0 +1,17 @@
+# 個人設定（記錄是否解除上限）
+settings.json
+
+# 存檔與備份：裡面有帳號識別碼，絕對不要上傳
+SAVE_DATA
+transfer_backup
+*.sav
+saves/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 系統
+.DS_Store

@@ -1,0 +1,793 @@
+<!doctype html>
+<!--
+  貓咪存檔工作台 — Copyright (C) 2026 貓咪存檔工作台 contributors
+  Licensed under the GNU General Public License v3.0 or later. See LICENSE.
+  Built on BCSFE by fieryhenry (https://codeberg.org/fieryhenry/BCSFE-Python).
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>貓咪存檔工作台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=M+PLUS+Rounded+1c:wght@700;800&display=swap">
+<style>
+/* Layout: indigo header band (brand, page switch, save state), summary strip, then a workbench column of step cards beside a sticky activity log; one column under 960px.
+   Look: "save card" — night-indigo chrome with cat-food-can gold as the one accent, soft rounded panels, rounded numerals for every count. */
+:root {
+  --bg: #f1f3f9;
+  --panel: #ffffff;
+  --panel-2: #f7f8fc;
+  --ink: #1b1f3a;
+  --muted: #646b8c;
+  --line: #e2e6f1;
+  --chrome: #ffffff;
+  --chrome-ink: #1b1f3a;
+  --chrome-muted: #646b8c;
+  --chrome-soft: #eef0f7;
+  --chrome-line: #e2e6f1;
+  --face-ink: #1b1f3a;
+  --codebox: #22264f;
+  --codebox-ink: #f3f4ff;
+  --gold: #ffbe2e;
+  --gold-ink: #2a1f00;
+  --gold-soft: #fff3d1;
+  --warn: #a35a00;
+  --warn-soft: #fff0dc;
+  --danger: #c4323a;
+  --danger-soft: #fde6e7;
+  --ok: #23824a;
+  --ok-soft: #e1f5e8;
+  --shadow: 0 1px 2px rgb(27 31 58 / .06), 0 8px 24px rgb(27 31 58 / .06);
+  --font: "Noto Sans TC", "PingFang TC", "Heiti TC", system-ui, sans-serif;
+  --num: "M PLUS Rounded 1c", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --r: 18px;
+}
+/* 解除上限：很兇的黑色 */
+:root[data-mode="unlimited"] {
+  --bg: #050505; --panel: #111111; --panel-2: #1a1a1a; --ink: #f4f4f4; --muted: #a3a3a3; --line: #2c2c2c;
+  --chrome: #000000; --chrome-ink: #ffffff; --chrome-muted: #b5b5b5; --chrome-soft: #1c1c1c; --chrome-line: #ff1f1f;
+  --gold: #ff1f1f; --gold-ink: #ffffff; --gold-soft: #2e0808;
+  --warn: #ffb020; --warn-soft: #2e2108; --danger: #ff3b3b; --danger-soft: #330b0b; --ok: #4ade80; --ok-soft: #0d2617;
+  --face-ink: #000000; --codebox: #000000; --codebox-ink: #ffffff;
+  --shadow: 0 0 0 1px #262626, 0 10px 30px rgb(255 0 0 / .08);
+  color-scheme: dark;
+}
+:root[data-mode="unlimited"] .bar { border-bottom: 2px solid var(--chrome-line); box-shadow: 0 4px 24px rgb(255 0 0 / .25); }
+:root[data-mode="unlimited"] .panel h2, :root[data-mode="unlimited"] .brand { letter-spacing: .06em; }
+:root[data-mode="unlimited"] .panel h2 .step { border-radius: 4px; transform: skewX(-8deg); }
+:root[data-mode="unlimited"] .panel, :root[data-mode="unlimited"] .stat { border-radius: 6px; }
+:root[data-mode="unlimited"] .btn, :root[data-mode="unlimited"] .item, :root[data-mode="unlimited"] .action,
+:root[data-mode="unlimited"] .list-row, :root[data-mode="unlimited"] input, :root[data-mode="unlimited"] select { border-radius: 4px; }
+:root[data-mode="unlimited"] .btn.primary { box-shadow: 0 0 16px rgb(255 31 31 / .45); text-transform: uppercase; }
+:root[data-mode="unlimited"] .stat .v { color: #fff; text-shadow: 0 0 12px rgb(255 31 31 / .6); }
+:root[data-mode="unlimited"] .stat.hot .v { color: #ff4d4d; }
+:root[data-mode="unlimited"] .unlimited-banner {
+  background: repeating-linear-gradient(-45deg, #ff1f1f 0 14px, #000 14px 28px);
+}
+:root[data-mode="unlimited"] .unlimited-banner > div { background: #000; display: block; max-width: none; text-align: center; font-weight: 900; letter-spacing: .04em; border-block: 4px solid transparent; }
+:root[data-mode="unlimited"] .brand .brow { display: inline; }
+.brand .brow { display: none; }
+:root[data-mode="unlimited"] .rar[data-r="稀有"] { background: #14203d; color: #9db8ff; }
+:root[data-mode="unlimited"] .rar[data-r="激稀有"] { background: #251838; color: #c9a6ff; }
+body, .panel, .bar, .stat, .item, .action { transition: background-color .35s, color .35s, border-color .35s; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.65 var(--font); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+input:focus-visible, select:focus-visible, button:focus-visible, .switch:focus-within { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+.bar { position: sticky; top: 0; z-index: 10; background: var(--chrome); color: var(--chrome-ink); border-bottom: 1px solid var(--chrome-line); box-shadow: 0 2px 10px rgb(27 31 58 / .05); }
+.bar-inner { max-width: 1200px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 18px; letter-spacing: .02em; }
+.brand svg { width: 34px; height: 34px; flex: none; }
+.views { display: flex; gap: 2px; background: var(--chrome-soft); padding: 3px; border-radius: 999px; }
+.view-btn { border: 0; background: none; padding: 5px 16px; border-radius: 999px; cursor: pointer; color: var(--chrome-muted); font-weight: 700; }
+.view-btn:hover { color: var(--chrome-ink); }
+.view-btn[aria-current="page"] { background: var(--gold); color: var(--gold-ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--chrome-soft); color: var(--chrome-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip.dirty { background: var(--gold); color: var(--gold-ink); font-weight: 700; }
+.chip.clean { background: var(--ok-soft); color: var(--ok); }
+.bar .spacer { flex: 1; }
+.switch { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; cursor: pointer; color: var(--chrome-muted); user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch .track { width: 38px; height: 22px; border-radius: 999px; background: #c9cedd; position: relative; transition: background .2s; flex: none; }
+.switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.switch.on { color: var(--danger); }
+.switch.on .track { background: var(--danger); }
+.switch.on .track::after { transform: translateX(16px); }
+.bar .btn.save { background: var(--gold); color: var(--gold-ink); border-color: transparent; font-weight: 800; }
+.unlimited-banner { background: var(--danger); color: #fff; }
+.unlimited-banner > div { max-width: 1200px; margin: 0 auto; padding: 8px 16px; font-size: 13.5px; font-weight: 500; }
+
+/* ---------- layout ---------- */
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 72px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+@media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } aside { order: 2; } }
+.col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+/* summary strip */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--panel); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .k { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.stat .v { font: 800 22px/1.25 var(--num); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat .s { font-size: 12px; color: var(--muted); }
+.stat.hot .v { color: var(--warn); }
+
+/* panels */
+.panel { background: var(--panel); border-radius: var(--r); padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0; box-shadow: var(--shadow); }
+.panel h2 { margin: 0; font-size: 19px; font-weight: 900; display: flex; align-items: center; gap: 12px; text-wrap: balance; }
+.panel h2 .step { font: 800 15px var(--num); width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--gold); color: var(--gold-ink); flex: none; }
+.panel .hint { margin: 0; color: var(--muted); font-size: 14px; }
+.panel.locked { opacity: .45; pointer-events: none; filter: saturate(.6); }
+
+.tabs { display: inline-flex; gap: 4px; background: var(--panel-2); padding: 4px; border-radius: 12px; align-self: flex-start; }
+.tab { border: 0; background: none; padding: 6px 14px; border-radius: 9px; cursor: pointer; color: var(--muted); font-weight: 700; }
+.tab[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .1); }
+
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; min-width: 0; }
+input[type=text], input[type=number], select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--ink); font-variant-numeric: tabular-nums; transition: border-color .15s, background .15s; }
+input[type=number] { font-family: var(--num); font-weight: 700; }
+input:hover, select:hover { border-color: color-mix(in srgb, var(--gold) 60%, var(--line)); }
+input:focus { background: var(--panel); border-color: var(--gold); }
+
+/* buttons */
+.btn { border: 1.5px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 16px; cursor: pointer; white-space: nowrap; font-weight: 700; transition: transform .1s, border-color .15s, background .15s; }
+.btn:hover { border-color: var(--gold); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); box-shadow: 0 2px 0 color-mix(in srgb, var(--gold) 60%, #000); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn.small { padding: 5px 12px; font-size: 13px; border-radius: 9px; }
+.btn[disabled] { opacity: .5; cursor: progress; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* item cards */
+.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.item { border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; background: var(--panel); }
+.item-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 8px; }
+.item-name { font-weight: 900; white-space: nowrap; }
+.item-max { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.item-input { display: flex; gap: 6px; }
+.item-input input { font-size: 17px; }
+.item.changed { border-color: var(--gold); background: var(--gold-soft); }
+.item.over { border-color: var(--danger); background: var(--danger-soft); }
+.item.risky .item-name::after { content: "高風險"; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--danger); background: var(--danger-soft); border-radius: 5px; padding: 1px 5px; vertical-align: 2px; }
+
+/* action tiles */
+.actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.action { border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; background: var(--panel); }
+.action .t { font-weight: 900; }
+.action .d { font-size: 13px; color: var(--muted); }
+.action.done { border-color: var(--ok); background: var(--ok-soft); }
+.action.done .t::after { content: "完成"; margin-left: 8px; font-size: 11px; font-weight: 700; color: #fff; background: var(--ok); border-radius: 5px; padding: 1px 6px; vertical-align: 2px; }
+.action.done .btn { border-color: var(--ok); color: var(--ok); background: transparent; }
+
+.custom-level { border: 1.5px dashed var(--danger); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--danger-soft); }
+.custom-level .t { font-weight: 900; color: var(--danger); }
+.custom-level .lv { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.custom-level input { width: 100px; }
+
+/* item lists (道具頁) */
+.list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.list-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px; align-items: center; gap: 10px; padding: 7px 8px 7px 12px; border: 1.5px solid var(--line); border-radius: 12px; }
+.list-row span { overflow-wrap: anywhere; font-size: 14px; font-weight: 500; }
+.list-row input { padding: 6px 10px; }
+.list-row.changed { border-color: var(--gold); background: var(--gold-soft); }
+.list-row.over { border-color: var(--danger); background: var(--danger-soft); }
+.list-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.list-tools input { width: 140px; padding: 5px 10px; }
+
+/* skills table */
+.table-wrap { overflow-x: auto; border: 1.5px solid var(--line); border-radius: 14px; }
+table.skills { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.skills th, table.skills td { padding: 9px 14px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+table.skills th { font-size: 12px; color: var(--muted); font-weight: 700; background: var(--panel-2); letter-spacing: .04em; }
+table.skills td:first-child { font-weight: 700; }
+table.skills tr:last-child td { border-bottom: 0; }
+table.skills tr.changed td { background: var(--gold-soft); }
+table.skills tr.over td { background: var(--danger-soft); }
+table.skills .lv { display: flex; align-items: center; gap: 6px; }
+table.skills .lv input { width: 84px; padding: 5px 8px; }
+table.skills .cap { color: var(--muted); font: 700 13px var(--num); font-variant-numeric: tabular-nums; }
+
+/* cats page */
+.cat-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cat-tools input { max-width: 260px; }
+.rarity { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { border: 1.5px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; cursor: pointer; color: var(--muted); }
+.pill[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.cat-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; background: var(--panel-2); border-radius: 12px; }
+.cat-bulk .t { font: 700 13px var(--num); color: var(--muted); min-width: 120px; }
+.cat-bulk .lv { display: flex; align-items: center; gap: 6px; }
+.cat-bulk input { width: 80px; padding: 5px 8px; }
+.cat-bulk .spacer { flex: 1; }
+.cat-table-wrap { max-height: 64vh; overflow: auto; }
+table.cats thead th { position: sticky; top: 0; z-index: 1; }
+table.cats td:first-child { white-space: normal; min-width: 140px; }
+.rar { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+.rar[data-r="稀有"] { background: #e3edff; color: #2f55b5; }
+.rar[data-r="激稀有"] { background: #efe3ff; color: #7140b8; }
+.rar[data-r="超激稀有"] { background: var(--gold-soft); color: var(--warn); }
+.rar[data-r="傳說稀有"] { background: var(--danger-soft); color: var(--danger); }
+.rar[data-r="EX"] { background: var(--ok-soft); color: var(--ok); }
+.callout { border-radius: 12px; padding: 10px 14px; font-size: 14px; }
+.callout.danger { background: var(--danger-soft); color: var(--ink); border-left: 4px solid var(--danger); }
+
+/* upload codes */
+.codes { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.code-box { background: var(--codebox); color: var(--codebox-ink); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.code-box .k { font-size: 13px; opacity: .75; }
+.code-box .v { font: 800 28px var(--num); letter-spacing: .08em; word-break: break-all; user-select: all; color: var(--gold); }
+.code-box button { align-self: flex-start; border: 0; background: var(--gold); color: var(--gold-ink); border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+/* log */
+aside .panel { position: sticky; top: 84px; }
+aside h2 { font-size: 16px !important; }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column-reverse; gap: 6px; max-height: 62vh; overflow-y: auto; font-size: 13px; }
+.log li { padding: 7px 10px 7px 12px; border-radius: 10px; background: var(--panel-2); overflow-wrap: anywhere; border-left: 3px solid var(--line); }
+.log li:first-child { border-left-color: var(--gold); background: var(--gold-soft); }
+
+/* overlays */
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 12px; background: var(--danger); color: #fff; font-weight: 700; box-shadow: 0 10px 30px rgb(0 0 0 / .25); z-index: 30; }
+.busy { position: fixed; inset: 0; background: rgb(14 17 34 / .35); backdrop-filter: blur(2px); display: grid; place-items: center; z-index: 20; }
+.busy div { background: var(--panel); padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px; }
+.busy div::before { content: ""; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--gold); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+@media (prefers-reduced-motion: no-preference) { .action, .item, .list-row { transition: background .2s, border-color .2s; } }
+@media (max-width: 520px) {
+  .panel { padding: 16px; }
+  .bar-inner { gap: 8px 12px; }
+  .brand span { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="bar"><div class="bar-inner">
+  <span class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <path d="M7 15 L9 4 L17 11 Q20 10 23 11 L31 4 L33 15 Q36 20 34 26 Q30 35 20 35 Q10 35 6 26 Q4 20 7 15Z" style="fill: var(--gold)"/>
+      <circle cx="14.5" cy="21" r="2.2" style="fill: var(--face-ink)"/><circle cx="25.5" cy="21" r="2.2" style="fill: var(--face-ink)"/>
+      <path class="brow" d="M10.5 15.5 L17 18.5 M29.5 15.5 L23 18.5" style="stroke: var(--face-ink)" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M17.5 27 Q20 29 22.5 27" style="stroke: var(--face-ink)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </svg>
+    <span>貓咪存檔工作台</span>
+  </span>
+  <nav class="views" aria-label="頁面">
+    <button class="view-btn" type="button" data-view="main" aria-current="page">總覽</button>
+    <button class="view-btn" type="button" data-view="items">道具</button>
+    <button class="view-btn" type="button" data-view="cats">貓咪</button>
+  </nav>
+  <div class="chips" id="chips"><span class="chip">尚未載入存檔</span></div>
+  <span class="spacer"></span>
+  <label class="switch" id="unlimited-switch"><input type="checkbox" id="in-unlimited"><span class="track"></span>解除上限</label>
+  <button class="btn small save" id="btn-save-top" type="button">存檔</button>
+</div></div>
+<div class="unlimited-banner" id="unlimited-banner" hidden><div>
+  ⚠ 已解除所有上限：數字可以填到存檔欄位能存的最大值。這些是正常玩不可能出現的數值，被封號、遊戲顯示錯誤或閃退的機率都很高。原始存檔備份在 transfer_backup。
+</div></div>
+
+<main>
+  <div class="col" id="view-main">
+    <div class="stats" id="stats" hidden></div>
+    <section class="panel" id="p-load">
+      <h2><span class="step">1</span>取得存檔</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tab-dl" aria-selected="true" type="button">用引繼碼下載</button>
+        <button class="tab" role="tab" id="tab-local" aria-selected="false" type="button">載入電腦上的存檔</button>
+      </div>
+      <form id="f-dl" class="col" style="gap:12px">
+        <p class="hint">在手機遊戲「設定 → 資料引繼」拿到碼之後，就不要再打開遊戲。每組碼只能用一次。</p>
+        <div class="form-row">
+          <label class="field">引繼碼<input type="text" id="in-transfer" autocomplete="off" spellcheck="false" placeholder="例如 a1b2c3d4e"></label>
+          <label class="field">認證碼<input type="text" id="in-pin" autocomplete="off" inputmode="numeric" placeholder="4 位數字"></label>
+          <label class="field">遊戲版本
+            <select id="in-cc">
+              <option value="tw">台灣版：貓咪大戰爭</option>
+              <option value="jp">日版：にゃんこ大戦争</option>
+              <option value="en">英文版：The Battle Cats</option>
+              <option value="kr">韓版：냥코 대전쟁</option>
+            </select>
+          </label>
+        </div>
+        <div class="btn-row"><button class="btn primary" type="submit">下載存檔</button></div>
+      </form>
+      <div id="f-local" class="col" style="gap:12px" hidden>
+        <p class="hint">載入上次下載或存過的檔案（SAVE_DATA）。手機上已經引繼過的話，這份是舊的，請改用引繼碼重新下載。</p>
+        <div class="btn-row"><button class="btn primary" type="button" id="btn-load">載入 SAVE_DATA</button></div>
+      </div>
+    </section>
+
+    <section class="panel locked" id="p-items-link">
+      <h2><span class="step">2</span>道具</h2>
+      <p class="hint">貓罐頭、XP、轉蛋券、貓眼石、貓薄荷果實、戰鬥道具、維他命、寶箱都在「道具」頁，可以一項一項改。</p>
+      <div class="btn-row">
+        <button class="btn primary" type="button" data-goto="items">打開道具頁</button>
+        <button class="btn" type="button" id="btn-items-quickmax">全部道具一鍵拉滿</button>
+      </div>
+    </section>
+
+    <section class="panel locked" id="p-cats">
+      <h2><span class="step">3</span>貓咪</h2>
+      <p class="hint">建議照順序執行：先解鎖，再升級和進化。也可以直接按「一鍵全部」。</p>
+      <div class="actions">
+        <div class="action" data-action="unlock"><div><div class="t">解鎖貓咪</div><div class="d">遊戲中拿得到的貓全部解鎖</div></div><button class="btn small" type="button">執行</button></div>
+        <div class="action" data-action="upgrade"><div><div class="t">等級拉滿</div><div class="d">每隻升到自己的最高等級與加值</div></div><button class="btn small" type="button">執行</button></div>
+        <div class="action" data-action="true_form"><div><div class="t">第三型態</div><div class="d">有第三型態的全部進化</div></div><button class="btn small" type="button">執行</button></div>
+        <div class="action" data-action="fourth_form"><div><div class="t">第四型態</div><div class="d">有第四型態的全部進化</div></div><button class="btn small" type="button">執行</button></div>
+        <div class="action" data-action="talents"><div><div class="t">本能點滿</div><div class="d">有本能的貓全部點滿</div></div><button class="btn small" type="button">執行</button></div>
+        <div class="action" data-action="guide"><div><div class="t">貓咪圖鑑</div><div class="d">已擁有的貓咪圖鑑全部登錄</div></div><button class="btn small" type="button">執行</button></div>
+      </div>
+      <div class="btn-row"><button class="btn primary" type="button" id="btn-cats-all">一鍵全部</button></div>
+      <div class="custom-level" id="custom-level" hidden>
+        <span class="t">自訂全部貓咪等級（解除上限）</span>
+        <div class="lv">
+          <input type="number" id="in-cat-base" min="1" value="100" aria-label="基本等級"><span>+</span>
+          <input type="number" id="in-cat-plus" min="0" value="100" aria-label="加值">
+          <button class="btn danger small" type="button" id="btn-cat-level">套用到全部已擁有貓咪</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel locked" id="p-skills">
+      <h2><span class="step">4</span>特殊能力</h2>
+      <p class="hint">研究力越高，貓咪出擊冷卻越短。等級格式是「基本等級 + 加值」，正常上限是 20 + 10。</p>
+      <div class="table-wrap">
+        <table class="skills">
+          <thead><tr><th>能力</th><th>等級</th><th>遊戲上限</th></tr></thead>
+          <tbody id="skills"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="skills-cap-hint">要填超過遊戲上限的數字，請先打開右上角的「解除上限」。</p>
+      <div class="btn-row">
+        <button class="btn" type="button" id="btn-skills-max">上限內全部拉滿</button>
+        <button class="btn primary" type="button" id="btn-skills-apply">套用變更</button>
+      </div>
+    </section>
+
+    <section class="panel locked" id="p-story">
+      <h2><span class="step">5</span>關卡與寶物</h2>
+      <div class="actions">
+        <div class="action" data-action="story"><div><div class="t">主線全通關</div><div class="d">世界篇、未來篇、宇宙篇</div></div><button class="btn small" type="button">執行</button></div>
+        <div class="action" data-action="treasures"><div><div class="t">寶物全金</div><div class="d">主線寶物設為最高品質</div></div><button class="btn small" type="button">執行</button></div>
+      </div>
+    </section>
+
+    <section class="panel locked" id="p-upload">
+      <h2><span class="step">6</span>上傳並轉回手機</h2>
+      <div class="callout danger">上傳後會拿到<strong>新的引繼碼和認證碼</strong>，請馬上抄下來。數值改得越誇張，被封號的機率越高。</div>
+      <div class="btn-row" id="upload-row">
+        <button class="btn" type="button" id="btn-save">只存檔（不上傳）</button>
+        <button class="btn primary" type="button" id="btn-upload">上傳並取得新引繼碼</button>
+      </div>
+      <div class="btn-row" id="upload-confirm" hidden>
+        <span>確定要上傳嗎？</span>
+        <button class="btn danger" type="button" id="btn-upload-yes">確定上傳</button>
+        <button class="btn" type="button" id="btn-upload-no">取消</button>
+      </div>
+      <div id="codes" hidden>
+        <div class="codes">
+          <div class="code-box"><span class="k">新引繼碼</span><span class="v" id="code-t"></span><button type="button" data-copy="code-t">複製</button></div>
+          <div class="code-box"><span class="k">新認證碼</span><span class="v" id="code-c"></span><button type="button" data-copy="code-c">複製</button></div>
+        </div>
+        <p class="hint" style="margin-top:12px">回手機打開貓咪大戰爭 → 標題畫面「資料引繼」→ 輸入上面這兩組碼。這組碼只顯示這一次。</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="col" id="view-items" hidden>
+    <section class="panel locked" id="p-items">
+      <h2>基本道具</h2>
+      <p class="hint">直接改數字，或按「最大」填入目前模式的上限。改過的格子會變色，按「套用變更」才會寫入。</p>
+      <div class="items" id="items"></div>
+      <div class="btn-row">
+        <button class="btn" type="button" id="btn-items-fill">全部填入上限</button>
+        <button class="btn" type="button" id="btn-items-reset">還原</button>
+        <button class="btn primary" type="button" id="btn-items-apply">套用變更</button>
+      </div>
+    </section>
+    <div class="col" id="item-lists"></div>
+    <div class="btn-row"><button class="btn" type="button" data-goto="main">回總覽（上傳在那裡）</button></div>
+  </div>
+
+  <div class="col" id="view-cats" hidden>
+    <section class="panel locked" id="p-catlist">
+      <h2>貓咪等級</h2>
+      <p class="hint">每隻貓都有自己的遊戲上限（右邊那欄）。改過的列會變色，按「套用變更」才會寫入。要填超過上限的數字，先打開右上角的「解除上限」。</p>
+      <div class="cat-tools">
+        <input type="text" id="cat-search" placeholder="搜尋貓咪名稱" aria-label="搜尋貓咪名稱">
+        <div class="rarity" id="cat-rarity" role="group" aria-label="稀有度"></div>
+      </div>
+      <div class="cat-bulk">
+        <span class="t" id="cat-count">—</span>
+        <span class="lv">
+          <input type="number" id="bulk-base" min="1" value="50" aria-label="基本等級"><span>+</span>
+          <input type="number" id="bulk-plus" min="0" value="70" aria-label="加值">
+        </span>
+        <button class="btn small" type="button" id="btn-bulk-set">套用到篩選出的貓</button>
+        <button class="btn small" type="button" id="btn-bulk-max">篩選出的全部拉到上限</button>
+        <span class="spacer"></span>
+        <button class="btn small" type="button" id="btn-cats-reset">還原</button>
+        <button class="btn primary" type="button" id="btn-cats-apply">套用變更</button>
+      </div>
+      <div class="table-wrap cat-table-wrap">
+        <table class="skills cats">
+          <thead><tr><th>貓咪</th><th>稀有度</th><th>等級</th><th>遊戲上限</th></tr></thead>
+          <tbody id="cat-rows"><tr><td colspan="4">切到這頁時會讀取貓咪清單。</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    <div class="btn-row"><button class="btn" type="button" data-goto="main">回總覽（上傳在那裡）</button></div>
+  </div>
+
+  <aside><section class="panel">
+    <h2>操作紀錄</h2>
+    <ul class="log" id="log"><li>開啟後會自動載入電腦上的 SAVE_DATA（如果有的話）。</li></ul>
+  </section></aside>
+</main>
+
+<div class="busy" id="busy" hidden><div id="busy-text">處理中…</div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const RISKY = new Set(["catfood", "rare_tickets", "platinum_tickets", "legend_tickets"]);
+let state = null;
+const done = new Set();
+
+async function call(path, body, busyText) {
+  $("#busy-text").textContent = busyText || "處理中…";
+  $("#busy").hidden = false;
+  try {
+    const r = await fetch(path, body === undefined ? {} : {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    render(data);
+    if (data.error) toast(data.error);
+    return data;
+  } catch (e) {
+    toast("連不上本機伺服器，請確認終端機裡的 server.py 還在執行。");
+    return null;
+  } finally {
+    $("#busy").hidden = true;
+  }
+}
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 6000);
+}
+
+function fmt(n) { return Number(n).toLocaleString("zh-TW"); }
+
+function render(s) {
+  state = s;
+  const chips = $("#chips");
+  chips.innerHTML = "";
+  if (!s.loaded) {
+    chips.innerHTML = '<span class="chip">尚未載入存檔</span>';
+  } else {
+    const add = (t, cls) => { const c = document.createElement("span"); c.className = "chip " + (cls || ""); c.textContent = t; chips.append(c); };
+    add(`${s.cc}-${s.version}`);
+    add(`貓咪 ${fmt(s.cats_unlocked)} / ${fmt(s.cats_total)}`);
+    add(s.dirty ? "有未存檔的修改" : "已存檔", s.dirty ? "dirty" : "clean");
+  }
+  for (const id of ["#p-items", "#p-items-link", "#p-cats", "#p-skills", "#p-story", "#p-upload", "#p-catlist"]) $(id).classList.toggle("locked", !s.loaded);
+  renderStats(s);
+  const unl = !!s.unlimited;
+  $("#in-unlimited").checked = unl;
+  $("#unlimited-switch").classList.toggle("on", unl);
+  $("#unlimited-banner").hidden = !unl;
+  document.documentElement.dataset.mode = unl ? "unlimited" : "normal";
+  $("#custom-level").hidden = !unl;
+  $("#skills-cap-hint").hidden = unl;
+  if (s.loaded) { renderItems(s.items); renderSkills(s.skills || []); renderLists(s.item_lists || []); }
+  const log = $("#log");
+  log.innerHTML = "";
+  (s.log || []).forEach((m) => { const li = document.createElement("li"); li.textContent = m; log.append(li); });
+  if (!s.log || !s.log.length) log.innerHTML = "<li>還沒有操作。</li>";
+  document.querySelectorAll(".action").forEach((a) => a.classList.toggle("done", done.has(a.dataset.action)));
+  if (s.codes) {
+    $("#code-t").textContent = s.codes.transfer;
+    $("#code-c").textContent = s.codes.confirm;
+    $("#codes").hidden = false;
+  }
+}
+
+function renderStats(s) {
+  const box = $("#stats");
+  box.hidden = !s.loaded;
+  if (!s.loaded) return;
+  const item = (f) => (s.items || []).find((i) => i.field === f) || { value: 0, game_max: 0 };
+  const research = (s.skills || []).find((k) => k.name === "研究力");
+  const tiles = [
+    ["貓罐頭", fmt(item("catfood").value), "遊戲上限 " + fmt(item("catfood").game_max), item("catfood").value > item("catfood").game_max],
+    ["XP", fmt(item("xp").value), "遊戲上限 " + fmt(item("xp").game_max), item("xp").value > item("xp").game_max],
+    ["已擁有貓咪", `${fmt(s.cats_unlocked)} 隻`, `全部 ${fmt(s.cats_total)} 隻`, false],
+    ["研究力", research ? `${research.base} + ${research.plus}` : "—", research ? `遊戲上限 ${research.max_base} + ${research.max_plus}` : "", research && (research.base > research.max_base || research.plus > research.max_plus)],
+  ];
+  box.innerHTML = "";
+  tiles.forEach(([k, v, sub, hot]) => {
+    const d = document.createElement("div");
+    d.className = "stat" + (hot ? " hot" : "");
+    d.innerHTML = '<span class="k"></span><span class="v"></span><span class="s"></span>';
+    d.querySelector(".k").textContent = k; d.querySelector(".v").textContent = v; d.querySelector(".s").textContent = sub;
+    box.append(d);
+  });
+}
+
+function renderItems(items) {
+  const box = $("#items");
+  box.innerHTML = "";
+  items.forEach((it) => {
+    const el = document.createElement("div");
+    el.className = "item" + (RISKY.has(it.field) ? " risky" : "");
+    el.innerHTML = `<div class="item-top"><span class="item-name"></span><span class="item-max"></span></div>
+      <div class="item-input"><input type="number" min="0"><button class="btn small" type="button">最大</button></div>`;
+    el.querySelector(".item-name").textContent = it.name;
+    el.querySelector(".item-max").textContent = "上限 " + fmt(it.max);
+    const inp = el.querySelector("input");
+    inp.id = "item-" + it.field;
+    inp.max = it.max;
+    inp.value = it.value;
+    inp.dataset.field = it.field;
+    inp.dataset.orig = it.value;
+    const mark = () => {
+      const over = Number(inp.value) > it.game_max;
+      el.classList.toggle("over", over);
+      el.classList.toggle("changed", !over && String(inp.value) !== String(inp.dataset.orig));
+    };
+    inp.addEventListener("input", mark);
+    el.querySelector("button").addEventListener("click", () => { inp.value = it.max; mark(); });
+    mark();
+    box.append(el);
+  });
+}
+
+function renderLists(groups) {
+  const box = $("#item-lists");
+  box.innerHTML = "";
+  groups.forEach((g) => {
+    const sec = document.createElement("section");
+    sec.className = "panel";
+    sec.innerHTML = `<div class="list-head"><h2></h2><div class="list-tools">
+        <input type="number" min="0" aria-label="統一數量"><button class="btn small" type="button" data-fill>全部設為這個數</button>
+        <button class="btn small" type="button" data-max>全部最大</button>
+        <button class="btn primary small" type="button" data-apply>套用</button></div></div>
+      <p class="hint"></p><div class="list-grid"></div>`;
+    sec.querySelector("h2").textContent = g.title;
+    sec.querySelector(".hint").textContent = `共 ${g.entries.length} 項，目前上限 ${fmt(g.max)}（遊戲上限 ${fmt(g.game_max)}）`;
+    const fillIn = sec.querySelector(".list-tools input");
+    fillIn.id = "fill-" + g.key; fillIn.max = g.max; fillIn.value = g.max;
+    const grid = sec.querySelector(".list-grid");
+    const inputs = g.entries.map((e, i) => {
+      const row = document.createElement("label");
+      row.className = "list-row";
+      row.innerHTML = `<span></span><input type="number" min="0">`;
+      row.querySelector("span").textContent = e.name;
+      const inp = row.querySelector("input");
+      inp.id = `list-${g.key}-${i}`; inp.max = g.max; inp.value = e.value; inp.dataset.orig = e.value;
+      const mark = () => {
+        const over = Number(inp.value) > g.game_max;
+        row.classList.toggle("over", over);
+        row.classList.toggle("changed", !over && String(inp.value) !== String(inp.dataset.orig));
+      };
+      inp.addEventListener("input", mark);
+      inp._mark = mark;
+      grid.append(row);
+      return inp;
+    });
+    const setAll = (v) => inputs.forEach((i) => { i.value = v; i._mark(); });
+    sec.querySelector("[data-fill]").onclick = () => setAll(Math.min(Number(fillIn.value) || 0, g.max));
+    sec.querySelector("[data-max]").onclick = () => setAll(g.max);
+    sec.querySelector("[data-apply]").onclick = () =>
+      call("/api/item_list", { key: g.key, values: inputs.map((i) => (i.value === "" ? null : Number(i.value))) }, `套用${g.title}…`);
+    box.append(sec);
+  });
+}
+
+const VIEWS = ["main", "items", "cats"];
+function showView(v) {
+  if (!VIEWS.includes(v)) v = "main";
+  VIEWS.forEach((name) => ($("#view-" + name).hidden = name !== v));
+  document.querySelectorAll(".view-btn").forEach((b) => {
+    if (b.dataset.view === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+  if (location.hash !== "#" + v) history.replaceState(null, "", "#" + v);
+  window.scrollTo(0, 0);
+  if (v === "cats" && state && state.loaded) loadCats();
+}
+document.querySelectorAll("[data-view], [data-goto]").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view || b.dataset.goto)));
+
+// ---------- 貓咪頁 ----------
+let cats = [];
+let catRarity = "全部";
+const catEdits = new Map(); // id -> {base, plus}
+const RARITIES = ["全部", "基本", "EX", "稀有", "激稀有", "超激稀有", "傳說稀有"];
+
+async function loadCats() {
+  const r = await call("/api/cats", {}, "讀取貓咪清單…");
+  if (r && r.cats) { cats = r.cats; catEdits.clear(); renderCats(); }
+}
+function filteredCats() {
+  const q = $("#cat-search").value.trim().toLowerCase();
+  return cats.filter((c) => (catRarity === "全部" || c.rarity === catRarity) && (!q || c.name.toLowerCase().includes(q)));
+}
+function renderRarity() {
+  const box = $("#cat-rarity");
+  box.innerHTML = "";
+  RARITIES.forEach((r) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "pill"; b.textContent = r;
+    b.setAttribute("aria-pressed", r === catRarity);
+    b.onclick = () => { catRarity = r; renderRarity(); renderCats(); };
+    box.append(b);
+  });
+}
+function renderCats() {
+  const list = filteredCats();
+  const unl = state && state.unlimited;
+  $("#cat-count").textContent = `顯示 ${fmt(list.length)} / ${fmt(cats.length)} 隻`;
+  const body = $("#cat-rows");
+  body.innerHTML = "";
+  if (!list.length) { body.innerHTML = '<tr><td colspan="4">沒有符合的貓咪。</td></tr>'; return; }
+  const frag = document.createDocumentFragment();
+  list.forEach((c) => {
+    const e = catEdits.get(c.id) || { base: c.base, plus: c.plus };
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td></td><td><span class="rar"></span></td><td><div class="lv"><input type="number" min="1" class="b"><span>+</span><input type="number" min="0" class="p"></div></td><td class="cap"></td>`;
+    tr.children[0].textContent = c.name;
+    const rar = tr.querySelector(".rar"); rar.textContent = c.rarity; rar.dataset.r = c.rarity;
+    tr.children[3].textContent = `${c.max_base} + ${c.max_plus}`;
+    const b = tr.querySelector(".b"), p = tr.querySelector(".p");
+    b.id = "cat-b-" + c.id; p.id = "cat-p-" + c.id;
+    b.value = e.base; p.value = e.plus;
+    const mark = () => {
+      const nb = Number(b.value), np = Number(p.value);
+      const over = nb > c.max_base || np > c.max_plus;
+      const changed = nb !== c.base || np !== c.plus;
+      tr.classList.toggle("over", over);
+      tr.classList.toggle("changed", changed && !over);
+      if (changed) catEdits.set(c.id, { base: nb, plus: np }); else catEdits.delete(c.id);
+      $("#btn-cats-apply").textContent = catEdits.size ? `套用變更（${catEdits.size} 隻）` : "套用變更";
+    };
+    b.addEventListener("input", mark); p.addEventListener("input", mark);
+    mark();
+    frag.append(tr);
+  });
+  body.append(frag);
+  void unl;
+}
+function bulkSet(fn) {
+  filteredCats().forEach((c) => {
+    const v = fn(c);
+    if (v.base === c.base && v.plus === c.plus) catEdits.delete(c.id); else catEdits.set(c.id, v);
+  });
+  renderCats();
+}
+$("#cat-search").addEventListener("input", renderCats);
+$("#btn-bulk-set").onclick = () => {
+  const base = Number($("#bulk-base").value), plus = Number($("#bulk-plus").value);
+  const unl = state && state.unlimited;
+  bulkSet((c) => ({ base: unl ? base : Math.min(base, c.max_base), plus: unl ? plus : Math.min(plus, c.max_plus) }));
+};
+$("#btn-bulk-max").onclick = () => bulkSet((c) => ({ base: c.max_base, plus: c.max_plus }));
+$("#btn-cats-reset").onclick = () => { catEdits.clear(); renderCats(); };
+$("#btn-cats-apply").onclick = async () => {
+  if (!catEdits.size) { toast("沒有改動。先改等級再按套用。"); return; }
+  const over = [...catEdits.entries()].some(([id, v]) => { const c = cats.find((x) => x.id === id); return c && (v.base > c.max_base || v.plus > c.max_plus); });
+  if (over && !(state && state.unlimited)) { toast("有貓咪超過遊戲上限。要突破上限，請先打開右上角的「解除上限」。"); return; }
+  const values = [...catEdits.entries()].map(([id, v]) => ({ id, ...v }));
+  const r = await call("/api/cats_set", { values }, `套用 ${values.length} 隻貓咪…`);
+  if (r && r.cats) { cats = r.cats; catEdits.clear(); renderCats(); }
+};
+renderRarity();
+showView(location.hash.slice(1));
+window.addEventListener("hashchange", () => showView(location.hash.slice(1)));
+
+$("#in-unlimited").addEventListener("change", (e) => call("/api/settings", { unlimited: e.target.checked }, "切換中…"));
+$("#btn-cat-level").onclick = () => runAction("upgrade", { base: Number($("#in-cat-base").value), plus: Number($("#in-cat-plus").value) });
+$("#btn-items-reset").onclick = () => state && renderItems(state.items);
+$("#btn-items-quickmax").onclick = async () => {
+  await call("/api/action/items_max", {}, "拉滿道具…");
+  for (const n of ["catseyes", "catfruit", "battle_items"]) { if (!(await runAction(n))) break; }
+};
+
+function renderSkills(skills) {
+  const body = $("#skills");
+  body.innerHTML = "";
+  if (!skills.length) { body.innerHTML = '<tr><td colspan="3">讀不到特殊能力資料。</td></tr>'; return; }
+  skills.forEach((k) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td></td><td><div class="lv"><input type="number" min="1" class="b"><span>+</span><input type="number" min="0" class="p"></div></td><td class="cap"></td>`;
+    tr.children[0].textContent = k.name;
+    tr.children[2].textContent = `${k.max_base} + ${k.max_plus}`;
+    const b = tr.querySelector(".b"), p = tr.querySelector(".p");
+    b.id = "skill-b-" + k.id; p.id = "skill-p-" + k.id;
+    b.value = k.base; p.value = k.plus;
+    tr.dataset.id = k.id;
+    const mark = () => {
+      const over = Number(b.value) > k.max_base || Number(p.value) > k.max_plus;
+      tr.classList.toggle("over", over);
+      tr.classList.toggle("changed", !over && (Number(b.value) !== k.base || Number(p.value) !== k.plus));
+    };
+    b.addEventListener("input", mark); p.addEventListener("input", mark);
+    mark();
+    body.append(tr);
+  });
+}
+$("#btn-skills-max").onclick = () => runAction("skills_max");
+$("#btn-skills-apply").onclick = () => {
+  const values = [...document.querySelectorAll("#skills tr[data-id]")].map((tr) => ({
+    id: Number(tr.dataset.id), base: Number(tr.querySelector(".b").value), plus: Number(tr.querySelector(".p").value),
+  }));
+  const anyOver = document.querySelector("#skills tr.over");
+  if (anyOver && !(state && state.unlimited)) { toast("有數值超過遊戲上限。要突破上限，請先打開右上角的「解除上限」。"); return; }
+  call("/api/skills", { values }, "套用特殊能力…");
+};
+
+// tabs
+function selectTab(dl) {
+  $("#tab-dl").setAttribute("aria-selected", dl); $("#tab-local").setAttribute("aria-selected", !dl);
+  $("#f-dl").hidden = !dl; $("#f-local").hidden = dl;
+}
+$("#tab-dl").onclick = () => selectTab(true);
+$("#tab-local").onclick = () => selectTab(false);
+
+$("#f-dl").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = await call("/api/download", { transfer: $("#in-transfer").value, pin: $("#in-pin").value, cc: $("#in-cc").value }, "正在從伺服器下載存檔…");
+  if (r && !r.error) { $("#in-transfer").value = ""; $("#in-pin").value = ""; done.clear(); $("#codes").hidden = true; render(r); }
+});
+$("#btn-load").onclick = async () => { const r = await call("/api/load", {}, "載入中…"); if (r && !r.error) { done.clear(); $("#codes").hidden = true; render(r); } };
+
+$("#btn-items-fill").onclick = () => {
+  document.querySelectorAll("#items input").forEach((i) => { i.value = i.max; i.dispatchEvent(new Event("input")); });
+};
+$("#btn-items-apply").onclick = () => {
+  const values = {};
+  document.querySelectorAll("#items input").forEach((i) => { if (String(i.value) !== String(i.dataset.orig)) values[i.dataset.field] = Number(i.value); });
+  call("/api/items", { values }, "套用道具…");
+};
+
+async function runAction(name, body) {
+  const r = await call("/api/action/" + name, body || {}, "執行中…（第一次會下載遊戲資料，可能要一點時間）");
+  if (r && !r.error) { done.add(name); render(r); }
+  return r && !r.error;
+}
+document.querySelectorAll(".action").forEach((a) => a.querySelector("button").addEventListener("click", () => runAction(a.dataset.action)));
+$("#btn-cats-all").onclick = async () => {
+  for (const n of ["unlock", "upgrade", "true_form", "fourth_form", "talents", "guide"]) { if (!(await runAction(n))) break; }
+};
+
+const doSave = () => call("/api/save", {}, "存檔中…");
+$("#btn-save").onclick = doSave;
+$("#btn-save-top").onclick = doSave;
+$("#btn-upload").onclick = () => { $("#upload-row").hidden = true; $("#upload-confirm").hidden = false; };
+$("#btn-upload-no").onclick = () => { $("#upload-row").hidden = false; $("#upload-confirm").hidden = true; };
+$("#btn-upload-yes").onclick = async () => {
+  $("#upload-row").hidden = false; $("#upload-confirm").hidden = true;
+  await call("/api/upload", {}, "正在上傳並取得新引繼碼…");
+};
+
+document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+  const text = document.getElementById(b.dataset.copy).textContent;
+  try { await navigator.clipboard.writeText(text); b.textContent = "已複製"; }
+  catch { const r = document.createRange(); r.selectNodeContents(document.getElementById(b.dataset.copy)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "已選取，按 ⌘C"; }
+  setTimeout(() => (b.textContent = "複製"), 1500);
+}));
+
+window.addEventListener("beforeunload", (e) => { if (state && state.dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+call("/api/state", undefined, "讀取狀態…").then(() => { if (location.hash === "#cats" && state && state.loaded) loadCats(); });
+</script>
+</body>
+</html>
